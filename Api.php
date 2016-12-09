@@ -226,6 +226,6 @@ class Moxy_MoxyMagazine_Model_Api extends Mage_Api_Model_Resource_Abstract
             }
         }
 
-        return $data;
+        return json_encode($data);
     }
 }
