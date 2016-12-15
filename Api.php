@@ -208,16 +208,19 @@ class Moxy_MoxyMagazine_Model_Api extends Mage_Api_Model_Resource_Abstract
             $checkout = $_SESSION["checkout"];
             $quote_id = $checkout['quote_id_1'];
             $data['quote_id'] = $quote_id;
-            Mage::getSingleton('checkout/session')->setQuoteId($quote_id);
+            // Mage::getSingleton('checkout/session')->setQuoteId($quote_id);
             $cart = Mage::getModel('sales/quote')->getCollection()
                         ->addFieldToFilter('entity_id', $quote_id)
                         ->getFirstItem();
-            $data["subtotal"] = $cart->getData()["subtotal"];
-            $data["customer_firstname"] = $cart->getData()["customer_firstname"];
-            $data["customer_lastname"] = $cart->getData()["customer_lastname"];
-            $data["customer_email"] = $cart->getData()["customer_email"];
-            $data["total_qty"] = count($cart->getAllVisibleItems());
-            foreach ($cart->getAllVisibleItems() as $item) {
+            $items = $cart->getAllVisibleItems();
+            $cartData = $cart->getData();
+            $data["subtotal"] = $cartData["subtotal"];
+            $data["customer_firstname"] = $cartData["customer_firstname"];
+            $data["customer_lastname"] = $cartData["customer_lastname"];
+            $data["customer_email"] = $cartData["customer_email"];
+            $data["total_qty"] = count($items);
+            $store_id = Mage::app()->getStore();
+            foreach ($items as $item) {
                 $product = array();
                 $productId = $item->getProductId();
                 $itemProduct = $item->getProduct();
@@ -225,18 +228,35 @@ class Moxy_MoxyMagazine_Model_Api extends Mage_Api_Model_Resource_Abstract
                 $product["product_name"] = $itemProduct->getName();
                 $product["product_price"] = $itemProduct->getPrice();
                 $product["product_qty"] = $item->getQty();
-                $product["product_url"] = Mage::getResourceSingleton('catalog/product')->getAttributeRawValue($productId, 'url_key', Mage::app()->getStore());
+                $product["product_url"] = Mage::getResourceSingleton('catalog/product')->getAttributeRawValue($productId, 'url_key', $store_id);
 
                 $productModel = Mage::getModel('catalog/product')->load($productId);
                 $product["product_image"] = (string) Mage::helper('catalog/image')->init($productModel, 'thumbnail')->resize('46x46');
 
+                $options = $itemProduct->getTypeInstance(true)->getOrderOptions($itemProduct);
+                $result = array();
+                if ($options)
+                {
+                    if (isset($options['options']))
+                    {
+                      $result = array_merge($result, $options['options']);
+                    }
+                    if (isset($options['additional_options']))
+                    {
+                      $result = array_merge($result, $options['additional_options']);
+                    }
+                    if (!empty($options['attributes_info']))
+                    {
+                      $result = array_merge($options['attributes_info'], $result);
+                    }
+                }
+                $product["attributes"] = $result;
                 $data["cart"][] = $product;
             }
         }
-
         $time_end = microtime(true);
-
-        $data['execute_time'] = $time_end - $time_start;
+        session_destroy(session_id());
+        $data["execution_time"] = $time_end - $time_start;
 
         return $data;
     }
